@@ -1,0 +1,56 @@
+---
+title: "ST704 Team Project"
+author: "Sohyeon and Jisu"
+output: html_document
+---
+
+```{r warning = FALSE, message = FALSE}
+library(tidyverse)
+library(stringi)
+library(rebus)
+```
+
+
+```{r}
+setwd("/Users/sohyeonkim/ST704_Project")
+Data <- read.csv("Salary_Data.csv") %>% as_tibble()
+Data[which(Data$index == 741), "Headquarters"] <- "Boston, MA" # Manually fill the missing value
+```
+
+
+```{r}
+# Data Manipulation
+Data_pretty <- Data %>% dplyr::select(-c(Salary.Estimate, Job.Description, Job.Title, company_txt, Age, Job.Location)) %>% # Remove duplicated values
+  separate(col = Headquarters, into = c("Headquarters.City", "Headquarters.State"), sep = ",") %>%
+  mutate(Rating = ifelse(Rating == -1, NA, Rating), # Indicate NA
+         # Remove "\nRatings" in Company.Name
+         Company.Name = str_remove_all(Company.Name, pattern = "\n" %R% DGT %R% "." %R% DGT %R% END), 
+         # Cannot apply separate function to Location because Santa Fe Springs, so manually separate it.
+         City = str_remove(Location, pattern = "," %R% SPC %R% one_or_more(WRD) %R% END),
+         State = str_extract(Location, pattern = SPC %R% one_or_more(WRD) %R% END) 
+                 %>% str_remove(pattern = SPC), 
+         Headquarters.State = str_remove(Headquarters.State, pattern = SPC), 
+         Competitors = ifelse(Competitors == -1, "None", Competitors)) %>%
+  select(-Location) %>%
+  rename(Job.Title = job_title_sim)
+```
+
+```{r}
+head(Data_pretty)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
