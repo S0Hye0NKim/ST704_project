@@ -17,7 +17,7 @@ Data <- read.csv("Salary_Data.csv") %>% as_tibble()
 Data[which(Data$index == 741), "Headquarters"] <- "Boston, MA" # Manually fill the missing value
 ```
 
-
+# EDA
 
 ```{r}
 # Data Manipulation
@@ -179,6 +179,22 @@ Data_pretty %>% dplyr::select(computing_idx, Avg.Salary.K.) %>%
 Data_pretty <- Data_pretty %>%
   dplyr::select(-c(index, Industry, Hourly, Employer.provided, Lower.Salary, Upper.Salary, City, State))
 ```
+
+
+```{r}
+set.seed(1)
+train <- sample(1:nrow(Data_pretty), round(3*nrow(Data_pretty)/4))
+train_data <- Data_pretty[train, ]
+test_data <- Data_pretty[-train, ]
+
+train_y <- train_data$Avg.Salary.K.
+test_y <- test_data$Avg.Salary.K.
+train_X <- model.matrix(Avg.Salary.K. ~., data = train_data)[, -1]
+test_X <- model.matrix(Avg.Salary.K. ~., data = test_data)[, -1]
+```
+
+
+# Lasso
 
 
 
