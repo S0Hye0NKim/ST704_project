@@ -175,6 +175,10 @@ Data_pretty %>% dplyr::select(computing_idx, Avg.Salary.K.) %>%
   facet_wrap(~Language)
 ```
 
+```{r}
+Data_pretty <- Data_pretty %>%
+  dplyr::select(-c(index, Industry, Hourly, Employer.provided, Lower.Salary, Upper.Salary, City, State))
+```
 
 
 
