@@ -12,10 +12,11 @@ library(rebus)
 
 
 ```{r}
-setwd("/Users/sohyeonkim/ST704_Project")
+setwd("/Users/sohyeonkim/Github/ST704_Project")
 Data <- read.csv("Salary_Data.csv") %>% as_tibble()
 Data[which(Data$index == 741), "Headquarters"] <- "Boston, MA" # Manually fill the missing value
 ```
+
 
 
 ```{r}
@@ -23,27 +24,156 @@ Data[which(Data$index == 741), "Headquarters"] <- "Boston, MA" # Manually fill t
 Data_pretty <- Data %>% dplyr::select(-c(Salary.Estimate, Job.Description, Job.Title, company_txt, Age, Job.Location)) %>% # Remove duplicated values
   separate(col = Headquarters, into = c("Headquarters.City", "Headquarters.State"), sep = ",") %>%
   mutate(Rating = ifelse(Rating == -1, NA, Rating), # Indicate NA
+         Founded = ifelse(Founded == -1, NA, Founded), 
          # Remove "\nRatings" in Company.Name
          Company.Name = str_remove_all(Company.Name, pattern = "\n" %R% DGT %R% "." %R% DGT %R% END), 
          # Cannot apply separate function to Location because Santa Fe Springs, so manually separate it.
          City = str_remove(Location, pattern = "," %R% SPC %R% one_or_more(WRD) %R% END),
          State = str_extract(Location, pattern = SPC %R% one_or_more(WRD) %R% END) 
                  %>% str_remove(pattern = SPC), 
-         Headquarters.State = str_remove(Headquarters.State, pattern = SPC), 
-         Competitors = ifelse(Competitors == -1, "None", Competitors)) %>%
-  select(-Location) %>%
-  rename(Job.Title = job_title_sim)
+         Headquarters.State = str_remove(Headquarters.State, pattern = SPC),
+         Headquarters.Country = case_when(nchar(Headquarters.State) == 2 ~ "U.S.A.", 
+                                          TRUE ~ Headquarters.State),
+         job_title_sim = case_when(job_title_sim == "Data scientist project manager"
+                                   ~ "DS project manager", 
+                                   job_title_sim == "machine learning engineer" ~ "ML engineer", 
+                                   job_title_sim == "na" ~ "others", 
+                                   TRUE ~ job_title_sim),
+         Type.of.ownership = case_when(Type.of.ownership == "Company - Private" ~ "Private", 
+                                       Type.of.ownership == "Other Organization" ~ "Other",
+                                       Type.of.ownership == "Company - Public" ~ "Public", 
+                                       Type.of.ownership == "Subsidiary or Business Segment" 
+                                       ~ "Subsidiary", 
+                                       Type.of.ownership == "Nonprofit Organization" ~ "NPO",
+                                       Type.of.ownership == "College / University" ~ "Univ",
+                                       Type.of.ownership == "School / School District" ~ "School", 
+                                       TRUE ~ Type.of.ownership),
+         Competitors = ifelse(Competitors == -1, "None", Competitors),
+         Sector = ifelse(Sector == "-1", "Others", Sector),
+         Revenue = str_remove(Revenue, pattern = " \\(USD\\)") %>%
+           str_replace(pattern = "million", replacement = "M.") %>%
+           str_replace(pattern = "billion", replacement = "B."), 
+         Revenue = ifelse(Revenue == "Unknown / Non-Applicable", "Unknown", Revenue)) %>%
+  select(-c(Location, Company.Name, Headquarters.City, Headquarters.State)) %>%
+  rename(Job.Title = job_title_sim) 
+
+factor_col_idx <- c("Hourly", "Employer.provided", "Python", "spark", "aws", 
+                    "excel", "sql", 
+                    "sas", "keras", "pytorch", "scikit", "tensor", "hadoop", "tableau", 
+                    "bi", "flink", "mongo", "google_an")
+Data_pretty[factor_col_idx] <- lapply(Data_pretty[factor_col_idx], as.factor)
+
+#Data_pretty <- na.omit(Data_pretty)
+Data_pretty$Size <- factor(Data_pretty$Size, levels = c("1 - 50 ", "51 - 200 ", "201 - 500 ", 
+                                                           "501 - 1000 ", "1001 - 5000 ", 
+                                                           "5001 - 10000 ", "10000+ "))
+Data_pretty$Revenue <- factor(Data_pretty$Revenue, 
+                              levels = c("$1 to $5 M.", "$5 to $10 M.", "$10 to $25 M.", "$25 to $50 M.", "$50 to $100 M.", "$100 to $500 M.", "$500 M. to $1 B.", "$1 to $2 B.", 
+                                         "$2 to $5 B.", "$5 to $10 B.", "$10+ B." ))
+
+```
+
+
+
+
+```{r}
+summary(Data_pretty)
+```
+
+
+```{r}
+get_upper_tri <- function(cormat){
+    cormat[lower.tri(cormat)]<- NA
+    return(cormat)
+  }
+quant_var <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.numeric)][-1]
+
+Cor_mat <- Data_pretty %>% dplyr::select(quant_var) %>% cor %>% get_upper_tri()
+melted_cormat <- reshape2::melt(Cor_mat, na.rm = TRUE)
+ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
 ```
 
 ```{r}
-head(Data_pretty)
+charac_col <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.character)][-c(2, 3, 4, 8, 9)]
+
+qual_var <- charac_col
+plot_list <- vector(mode = "list", length = length(qual_var))
+
+for(idx in 1:length(qual_var)) {
+  sub_data <- Data_pretty %>% dplyr::select(qual_var[idx], Avg.Salary.K.) %>% `colnames<-`(value = c("Var", "Salary")) 
+  sub_plot <- sub_data %>% ggplot(mapping = aes(x = Var, y = Salary, fill = Var)) +
+    geom_boxplot() +
+    labs(x = qual_var[idx]) +
+    guides(fill=guide_legend(title=qual_var[idx])) +
+    theme(axis.text.x = element_text(angle = 45,hjust=1), 
+          legend.position = "none")
+    #theme(axis.title.x=element_blank(),
+    #    axis.text.x=element_blank(),
+    #    axis.ticks.x=element_blank())
+  plot_list[[idx]] <- sub_plot
+}
+
+gridExtra::grid.arrange(
+  grobs = plot_list[c(3,4)],
+  widths = c(1,1),
+  layout_matrix = rbind(c(1,2))
+)
+
+```
+
+```{r}
+charac_col <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.character)][c(2, 3, 4, 8, 9)]
+
+sub_data <- Data_pretty %>% dplyr::select(Sector, Avg.Salary.K.) %>% `colnames<-`(value = c("Var", "Salary")) 
+  sub_plot <- sub_data %>% ggplot(mapping = aes(x = Var, y = Salary, fill = Var)) +
+    geom_boxplot() +
+    labs(x = "Sector") +
+    guides(fill=guide_legend(title=qual_var[idx])) +
+    theme(axis.text.x = element_text(angle = 45,hjust=1), 
+          legend.position = "none")
 ```
 
 
 
+```{r}
+factor_col <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.factor)][c(1, 2)]
 
+qual_var <- factor_col
+plot_list <- vector(mode = "list", length = length(qual_var))
 
+for(idx in 1:length(qual_var)) {
+  sub_data <- Data_pretty %>% dplyr::select(qual_var[idx], Avg.Salary.K.) %>% `colnames<-`(value = c("Var", "Salary")) 
+  sub_plot <- sub_data %>% ggplot(mapping = aes(x = Var, y = Salary, fill = Var)) +
+    geom_boxplot() +
+    labs(x = qual_var[idx]) +
+    guides(fill=guide_legend(title=qual_var[idx])) +
+    theme(axis.text.x = element_text(angle = 45,hjust=1), 
+          legend.position = "none")
+    #theme(axis.title.x=element_blank(),
+    #    axis.text.x=element_blank(),
+    #    axis.ticks.x=element_blank())
+  plot_list[[idx]] <- sub_plot
+}
 
+```
+
+```{r}
+computing_idx <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.factor)][5:20]
+
+Data_pretty %>% dplyr::select(computing_idx, Avg.Salary.K.) %>%
+  pivot_longer(cols = -Avg.Salary.K., names_to = "Language") %>%
+  ggplot(mapping = aes(x = value, y = Avg.Salary.K., fill = value)) +
+  geom_boxplot() + 
+  facet_wrap(~Language)
+```
 
 
 
