@@ -53,7 +53,7 @@ Data_pretty <- Data %>% dplyr::select(-c(Salary.Estimate, Job.Description, Job.T
          Revenue = str_remove(Revenue, pattern = " \\(USD\\)") %>%
            str_replace(pattern = "million", replacement = "M.") %>%
            str_replace(pattern = "billion", replacement = "B."), 
-         Revenue = ifelse(Revenue == "Unknown / Non-Applicable", "Unknown", Revenue)) %>%
+         Revenue = ifelse(Revenue == "Unknown / Non-Applicable", "unknown", Revenue)) %>%
   select(-c(Location, Company.Name, Headquarters.City, Headquarters.State)) %>%
   rename(Job.Title = job_title_sim) 
 
@@ -63,12 +63,12 @@ factor_col_idx <- c("Hourly", "Employer.provided", "Python", "spark", "aws",
                     "bi", "flink", "mongo", "google_an")
 Data_pretty[factor_col_idx] <- lapply(Data_pretty[factor_col_idx], as.factor)
 
-#Data_pretty <- na.omit(Data_pretty)
-Data_pretty$Size <- factor(Data_pretty$Size, levels = c("1 - 50 ", "51 - 200 ", "201 - 500 ", 
+Data_pretty <- na.omit(Data_pretty)
+Data_pretty$Size <- factor(Data_pretty$Size, levels = c("unknown", "1 - 50 ", "51 - 200 ", "201 - 500 ", 
                                                            "501 - 1000 ", "1001 - 5000 ", 
                                                            "5001 - 10000 ", "10000+ "))
 Data_pretty$Revenue <- factor(Data_pretty$Revenue, 
-                              levels = c("$1 to $5 M.", "$5 to $10 M.", "$10 to $25 M.", "$25 to $50 M.", "$50 to $100 M.", "$100 to $500 M.", "$500 M. to $1 B.", "$1 to $2 B.", 
+                              levels = c("unknown", "$1 to $5 M.", "$5 to $10 M.", "$10 to $25 M.", "$25 to $50 M.", "$50 to $100 M.", "$100 to $500 M.", "$500 M. to $1 B.", "$1 to $2 B.", 
                                          "$2 to $5 B.", "$5 to $10 B.", "$10+ B." ))
 
 ```
