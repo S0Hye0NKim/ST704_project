@@ -48,7 +48,7 @@ Data_pretty <- Data %>% dplyr::select(-c(Salary.Estimate, Job.Description, Job.T
                                        Type.of.ownership == "College / University" ~ "Univ",
                                        Type.of.ownership == "School / School District" ~ "School", 
                                        TRUE ~ Type.of.ownership),
-         Competitors = ifelse(Competitors == -1, "None", Competitors),
+         Competitors = ifelse(Competitors == -1, "None", "Exist"),
          Sector = ifelse(Sector == "-1", "Others", Sector),
          Revenue = str_remove(Revenue, pattern = " \\(USD\\)") %>%
            str_replace(pattern = "million", replacement = "M.") %>%
