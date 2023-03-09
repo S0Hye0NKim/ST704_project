@@ -9,6 +9,7 @@ library(tidyverse)
 library(stringi)
 library(rebus)
 library(glmnet)
+library(pander)
 ```
 
 
@@ -209,15 +210,15 @@ ncol(test_X)
 
 ```{r}
 set.seed(1)
+
+par(mfrow = c(1, 2))
 ridge <- glmnet(train_X, train_y, alpha = 0, standardized = TRUE, nlambda = 100)
 plot(ridge, label = TRUE, xvar = "lambda")
-```
 
-
-```{r}
 ridge_cv <- cv.glmnet(train_X, train_y, alpha = 0, nlambda = 100)
 plot(ridge_cv)
 ```
+
 
 ```{r}
 ridge_cv$lambda.min
@@ -228,7 +229,7 @@ ridge_cv$lambda.1se
 SSE_ridge <- (predict(ridge, test_X, s = ridge_cv$lambda.1se) - test_y)^2
 (MSE_ridge <- mean(SSE_ridge))
 (se_MSE_ridge <- sd(SSE_ridge)/sqrt(length(test_y)))
-(coef_ridge <- coef(ridge, s = ridge_cv$lambda.1se))
+coef_ridge <- coef(ridge, s = ridge_cv$lambda.1se)
 ```
 
 
@@ -236,17 +237,18 @@ SSE_ridge <- (predict(ridge, test_X, s = ridge_cv$lambda.1se) - test_y)^2
 # Lasso
 
 ```{r}
+par(mfrow = c(1, 2))
+
 set.seed(1)
 lasso <- glmnet(train_X, train_y, alpha = 1, standardize = TRUE, nlambda = 100)
 plot(lasso, label = TRUE, xvar = "lambda")
-```
 
-
-```{r}
 set.seed(10)
 lasso_cv <- cv.glmnet(train_X, train_y, alpha = 1)
 plot(lasso_cv)
 ```
+
+
 
 ```{r}
 lasso_cv$lambda.min
@@ -257,7 +259,22 @@ lasso_cv$lambda.1se
 SSE_lasso <- (predict(lasso, test_X, s = lasso_cv$lambda.1se) - test_y)^2
 (MSE_lasso <- mean(SSE_lasso))
 (SE_MSE_lasso <- sd(SSE_lasso)/sqrt(length(test_y)))
-(coef_lasso <- coef(lasso, s=lasso_cv$lambda.1se))
+coef_lasso <- coef(lasso, s=lasso_cv$lambda.1se)
+```
+
+```{r}
+coef_nm <- rownames(coef_ridge)
+
+data1 <- as.data.frame(summary(coef_ridge)) %>% select(i, Ridge = x)
+data2 <- as.data.frame(summary(coef_lasso)) %>% select(i, Lasso = x)
+
+full_join(data1, data2, by = "i") %>% 
+  mutate(coefficient = coef_nm, 
+         Ridge = round(Ridge, 3),
+         Lasso = replace_na(Lasso, replace = 0) %>% round(3)) %>%
+  select(coefficient, Ridge, Lasso) %>% pander()
+
+
 ```
 
 
