@@ -8,6 +8,7 @@ output: html_document
 library(tidyverse)
 library(stringi)
 library(rebus)
+library(glmnet)
 ```
 
 
@@ -81,7 +82,7 @@ summary(Data_pretty)
 ```
 
 
-```{r}
+```{r eval = FALSE}
 get_upper_tri <- function(cormat){
     cormat[lower.tri(cormat)]<- NA
     return(cormat)
@@ -101,7 +102,7 @@ ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
  coord_fixed()
 ```
 
-```{r}
+```{r eval = FALSE}
 charac_col <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.character)][-c(2, 3, 4, 8, 9)]
 
 qual_var <- charac_col
@@ -129,7 +130,7 @@ gridExtra::grid.arrange(
 
 ```
 
-```{r}
+```{r eval = FALSE}
 charac_col <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.character)][c(2, 3, 4, 8, 9)]
 
 sub_data <- Data_pretty %>% dplyr::select(Sector, Avg.Salary.K.) %>% `colnames<-`(value = c("Var", "Salary")) 
@@ -143,7 +144,7 @@ sub_data <- Data_pretty %>% dplyr::select(Sector, Avg.Salary.K.) %>% `colnames<-
 
 
 
-```{r}
+```{r eval = FALSE}
 factor_col <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.factor)][c(1, 2)]
 
 qual_var <- factor_col
@@ -165,7 +166,7 @@ for(idx in 1:length(qual_var)) {
 
 ```
 
-```{r}
+```{r eval = FALSE}
 computing_idx <- colnames(Data_pretty)[sapply(Data_pretty, FUN = is.factor)][5:20]
 
 Data_pretty %>% dplyr::select(computing_idx, Avg.Salary.K.) %>%
@@ -176,13 +177,19 @@ Data_pretty %>% dplyr::select(computing_idx, Avg.Salary.K.) %>%
 ```
 
 ```{r}
+Sector_percent <- (Data_pretty$Sector %>% table)/(nrow(Data_pretty))
+Other_sector <- Sector_percent[Sector_percent < 0.05] %>% names()
+
 Data_pretty <- Data_pretty %>%
-  dplyr::select(-c(index, Industry, Hourly, Employer.provided, Lower.Salary, Upper.Salary, City, State))
+  dplyr::select(-c(index, Industry, Hourly, Employer.provided, Lower.Salary, Upper.Salary, City, State)) %>%
+  mutate(Headquarters.Country = ifelse(Headquarters.Country != "U.S.A.", "non-U.S.A.", Headquarters.Country), 
+         Sector = ifelse(Sector %in% Other_sector, "Other", Sector), 
+         Type.of.ownership = ifelse(Type.of.ownership %in% c("Other", "Univ", "School"), "Other", Type.of.ownership))
 ```
 
 
 ```{r}
-set.seed(1)
+set.seed(10)
 train <- sample(1:nrow(Data_pretty), round(3*nrow(Data_pretty)/4))
 train_data <- Data_pretty[train, ]
 test_data <- Data_pretty[-train, ]
@@ -191,15 +198,67 @@ train_y <- train_data$Avg.Salary.K.
 test_y <- test_data$Avg.Salary.K.
 train_X <- model.matrix(Avg.Salary.K. ~., data = train_data)[, -1]
 test_X <- model.matrix(Avg.Salary.K. ~., data = test_data)[, -1]
+colnames(train_X)[!(colnames(train_X) %in% colnames(test_X))]
+colnames(test_X)[!(colnames(test_X) %in% colnames(train_X))]
+
+ncol(train_X)
+ncol(test_X)
 ```
+
+# Ridge
+
+```{r}
+set.seed(1)
+ridge <- glmnet(train_X, train_y, alpha = 0, standardized = TRUE, nlambda = 100)
+plot(ridge, label = TRUE, xvar = "lambda")
+```
+
+
+```{r}
+ridge_cv <- cv.glmnet(train_X, train_y, alpha = 0, nlambda = 100)
+plot(ridge_cv)
+```
+
+```{r}
+ridge_cv$lambda.min
+ridge_cv$lambda.1se
+```
+
+```{r}
+SSE_ridge <- (predict(ridge, test_X, s = ridge_cv$lambda.1se) - test_y)^2
+(MSE_ridge <- mean(SSE_ridge))
+(se_MSE_ridge <- sd(SSE_ridge)/sqrt(length(test_y)))
+(coef_ridge <- coef(ridge, s = ridge_cv$lambda.1se))
+```
+
 
 
 # Lasso
 
+```{r}
+set.seed(1)
+lasso <- glmnet(train_X, train_y, alpha = 1, standardize = TRUE, nlambda = 100)
+plot(lasso, label = TRUE, xvar = "lambda")
+```
 
 
+```{r}
+set.seed(10)
+lasso_cv <- cv.glmnet(train_X, train_y, alpha = 1)
+plot(lasso_cv)
+```
 
+```{r}
+lasso_cv$lambda.min
+lasso_cv$lambda.1se
+```
 
+```{r}
+SSE_lasso <- (predict(lasso, test_X, s = lasso_cv$lambda.1se) - test_y)^2
+(MSE_lasso <- mean(SSE_lasso))
+(SE_MSE_lasso <- sd(SSE_lasso)/sqrt(length(test_y)))
+(coef_lasso <- coef(lasso, s=lasso_cv$lambda.1se))
+```
 
 
 
