@@ -10,6 +10,8 @@ library(stringi)
 library(rebus)
 library(glmnet)
 library(pander)
+library(rqPen)
+library(quantreg)
 ```
 
 
@@ -277,6 +279,46 @@ full_join(data1, data2, by = "i") %>%
 
 ```
 
+# Quantile Regression
+
+```{r}
+check_ft <- function(x, tau) {
+  z <- ifelse(x<0, (tau-1)*x, tau*x)
+  return(z)
+}
+```
+
+
+```{r}
+set.seed(1)
+fit_rq <- rq(Avg.Salary.K. ~ ., tau = 0.25, data = train_data)
+
+summary(fit_rq)
+```
+
+```{r}
+fit_rq_pred <- predict(fit_rq, newdata = select(test_data, -Avg.Salary.K.))
+
+SSE_fit_rq <- (check_ft(test_y, tau = 0.25) - check_ft(fit_rq_pred, tau = 0.25))^2
+(MSE_fit_rq <- mean(SSE_fit_rq))
+(SE_MSE_fit_rq <- sd(SSE_fit_rq)/sqrt(length(test_y)))
+```
+
+
+
+
+
+
+# Quantile Regression with Lasso Penalty
+
+```{r}
+set.seed(1)
+cv_rq_pen <- rq.pen.cv(x = train_X, y = train_y, tau = 0.25)
+```
+
+
+
+# XG boost
 
 
 
