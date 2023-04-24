@@ -12,6 +12,7 @@ library(glmnet)
 library(pander)
 library(rqPen)
 library(quantreg)
+library(xgboost)
 ```
 
 
@@ -313,12 +314,43 @@ SSE_fit_rq <- (check_ft(test_y, tau = 0.25) - check_ft(fit_rq_pred, tau = 0.25))
 
 ```{r}
 set.seed(1)
-cv_rq_pen <- rq.pen.cv(x = train_X, y = train_y, tau = 0.25)
+cv_rq_pen <- rq.pen.cv(x = train_X, y = train_y, tau = 0.25, penalty = "LASSO")
+
+cv_rq_lambda <- cv_rq_pen$btr$lambda1se
+fit_rq_lasso <- rq.pen(x = train_X, y = train_y, tau = 0.25, lambda = c(cv_rq_lambda), 
+                       penalty = "LASSO", alg = "br")
+
+coef(fit_rq_lasso)
+
+newx <- model.matrix(Avg.Salary.K. ~., data = test_data)[, -1]
+fit_rq_lasso_pred <- predict(fit_rq_lasso, newx)
+
+SSE_fit_rq_lasso <- (check_ft(test_y, tau = 0.25) - check_ft(fit_rq_lasso_pred, tau = 0.25))^2
+(MSE_fit_rq_lasso <- mean(SSE_fit_rq_lasso))
+(SE_MSE_fit_rq_lasso <- sd(SSE_fit_rq_lasso)/sqrt(length(test_y)))
 ```
 
 
 
 # XG boost
 
+```{r}
+set.seed(1)
+xgb_train <- xgb.DMatrix(data = train_X, label = train_y)
+xgb_test <- xgb.DMatrix(data = test_X, label = test_y)
+
+watchlist <- list(train=xgb_train, test=xgb_test)
+train_xgb <- xgb.train(data = xgb_train, max.depth = 3, watchlist=watchlist, nrounds = 1000, verbose = 0)
+nrounds_xgb <- train_xgb$evaluation_log$test_rmse %>% which.min
+fit_xgb <- xgboost(data = xgb_train, max.depth = 3, nrounds = nrounds_xgb, verbose = 0)
+
+summary(fit_xgb)
+
+fit_xgb_pred <- predict(fit_xgb, xgb_test)
+
+SSE_xgb <- (fit_xgb_pred - test_y)^2
+(MSE_xgb <- mean(SSE_xgb))
+(SE_MSE_xgb <- sd(SSE_xgb)/sqrt(length(test_y)))
+```
 
 
