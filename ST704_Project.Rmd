@@ -13,6 +13,10 @@ library(pander)
 library(rqPen)
 library(quantreg)
 library(xgboost)
+library(rpart.plot)
+library(DiagrammeR)
+library(lars)
+library(car)
 ```
 
 
@@ -209,6 +213,13 @@ ncol(train_X)
 ncol(test_X)
 ```
 
+```{r}
+colnames(train_data)
+lm(Avg.Salary.K. ~ ., data = train_data) %>% vif
+```
+
+
+
 # Ridge
 
 ```{r}
@@ -265,20 +276,83 @@ SSE_lasso <- (predict(lasso, test_X, s = lasso_cv$lambda.1se) - test_y)^2
 coef_lasso <- coef(lasso, s=lasso_cv$lambda.1se)
 ```
 
+
+# LARS
+
 ```{r}
-coef_nm <- rownames(coef_ridge)
+library(lars)
+set.seed(1)
+fit.lars = lars(train_X, train_y, type="lar")
+cv.fit.lars = cv.lars(train_X, train_y, type="lar"); cv.fit.lars
+which.min(cv.fit.lars$cv)
+plot(fit.lars, "norm")
+ 
+SSE_lars = (predict(fit.lars, test_X, s=58, mode="step")$fit - test_y)^2
+MSE_lars = mean(SSE_lars)
+SE_lars = sd(SSE_lars)/sqrt(length(test_y))
+MSE_lars; SE_lars
 
-data1 <- as.data.frame(summary(coef_ridge)) %>% select(i, Ridge = x)
-data2 <- as.data.frame(summary(coef_lasso)) %>% select(i, Lasso = x)
+coefficients.lar = coef(fit.lars)
 
-full_join(data1, data2, by = "i") %>% 
-  mutate(coefficient = coef_nm, 
-         Ridge = round(Ridge, 3),
-         Lasso = replace_na(Lasso, replace = 0) %>% round(3)) %>%
-  select(coefficient, Ridge, Lasso) %>% pander()
+set.seed(1)
+fit.lars.lasso = lars(train_X, train_y, type="lasso")
+plot(fit.lars.lasso, "norm")
 
-
+coef(fit.lars.lasso)
 ```
+
+```{r}
+cor(train_y - train_X %*% coefficient.lars[6,],train_X[,11] )
+cor(train_y - train_X %*% coefficient.lars[6,],train_X[,32] )
+cor(train_y - train_X %*% coefficient.lars[6,],train_X[,34] )
+cor(train_y - train_X %*% coefficient.lars[6,],train_X[,53] )
+cor(train_y - train_X %*% coefficient.lars[6,],train_X[,60] )
+```
+
+
+# Kernel Regression
+
+```{r}
+train_data2 = train_data
+train_data2$Type.of.ownership = as.factor(train_data2$Type.of.ownership)
+train_data2$Sector = as.factor(train_data2$Sector)
+train_data2$Competitors = as.factor(train_data2$Competitors)
+train_data2$Job.Title = as.factor(train_data2$Job.Title)
+train_data2$seniority_by_title = as.factor(train_data2$seniority_by_title)
+train_data2$Degree = as.factor(train_data2$Degree)
+train_data2$Headquarters.Country = as.factor(train_data2$Headquarters.Country)
+
+test_data2 = test_data
+test_data2$Type.of.ownership = as.factor(test_data2$Type.of.ownership)
+test_data2$Sector = as.factor(test_data2$Sector)
+test_data2$Competitors = as.factor(test_data2$Competitors)
+test_data2$Job.Title = as.factor(test_data2$Job.Title)
+test_data2$seniority_by_title = as.factor(test_data2$seniority_by_title)
+test_data2$Degree = as.factor(test_data2$Degree)
+test_data2$Headquarters.Country = as.factor(test_data2$Headquarters.Country)
+```
+
+
+```{r}
+library(np)
+set.seed(1)
+fit.kernel_loc <- np::npregbw(formula=Avg.Salary.K. ~ Rating+factor(Size)+Founded+factor(Type.of.ownership)+factor(Sector)
+                          + factor(Revenue)+ factor(Competitors) + factor(Python) + factor(spark)+ factor(aws)
+                          + factor(excel)+ factor(sql) + factor(sas) + factor(keras) + factor(pytorch)
+                          + factor(scikit) + factor(tensor) + factor(hadoop)+ factor(tableau) + factor(bi)
+                          + factor(flink)+ factor(mongo) + factor(google_an) + factor(Job.Title)
+                          + factor(seniority_by_title)+ factor(Degree)+ factor(Headquarters.Country), 
+                          data=train_data2, regtype="lc")
+fit.kernel2_loc = npreg(fit.kernel_loc)
+summary(fit.kernel2_loc)
+par(mfrow = c(2,3))
+plot(fit.kernel2_loc, plot.errors.method="bootstrap", plot.par.mfrow=FALSE, random.seed=1)
+
+SSE_kernel = (predict(fit.kernel2_loc, newdata=test_data2)-test_y)^2
+MSE_kernel = mean(SSE_kernel); MSE_kernel
+SE_MSE_kernel = sd(SSE_kernel)/sqrt(length(test_y));SE_MSE_kernel
+```
+
 
 # Quantile Regression
 
@@ -293,8 +367,6 @@ check_ft <- function(x, tau) {
 ```{r}
 set.seed(1)
 fit_rq <- rq(Avg.Salary.K. ~ ., tau = 0.25, data = train_data)
-
-summary(fit_rq)
 ```
 
 ```{r}
@@ -320,7 +392,7 @@ cv_rq_lambda <- cv_rq_pen$btr$lambda1se
 fit_rq_lasso <- rq.pen(x = train_X, y = train_y, tau = 0.25, lambda = c(cv_rq_lambda), 
                        penalty = "LASSO", alg = "br")
 
-coef(fit_rq_lasso)
+coef(fit_rq_lasso) %>% round(3)
 
 newx <- model.matrix(Avg.Salary.K. ~., data = test_data)[, -1]
 fit_rq_lasso_pred <- predict(fit_rq_lasso, newx)
@@ -340,7 +412,7 @@ xgb_train <- xgb.DMatrix(data = train_X, label = train_y)
 xgb_test <- xgb.DMatrix(data = test_X, label = test_y)
 
 watchlist <- list(train=xgb_train, test=xgb_test)
-train_xgb <- xgb.train(data = xgb_train, max.depth = 3, watchlist=watchlist, nrounds = 1000, verbose = 0)
+train_xgb <- xgb.train(data = xgb_train, watchlist=watchlist, nrounds = 1000, verbose = 0)
 nrounds_xgb <- train_xgb$evaluation_log$test_rmse %>% which.min
 fit_xgb <- xgboost(data = xgb_train, max.depth = 3, nrounds = nrounds_xgb, verbose = 0)
 
@@ -351,6 +423,45 @@ fit_xgb_pred <- predict(fit_xgb, xgb_test)
 SSE_xgb <- (fit_xgb_pred - test_y)^2
 (MSE_xgb <- mean(SSE_xgb))
 (SE_MSE_xgb <- sd(SSE_xgb)/sqrt(length(test_y)))
+```
+
+
+```{r}
+# a plot with all the trees
+xgb.plot.tree(model = fit_xgb)
+
+# this seems to be a mess. Hence, we only stick to 1 tree at a time. The below code is to plot first tree and show its node ID
+xgb.plot.tree(model = fit_xgb, trees = 3, show_node_id = TRUE)
+```
+
+
+
+
+```{r}
+coef_nm <- rownames(coef_ridge)
+
+coef_rq <- coef(fit_rq)
+coef_rq_lasso <- coef(fit_rq_lasso)
+coef_lars <- coefficients.lars[58, ]
+
+data1 <- as.data.frame(summary(coef_ridge)) %>% select(i, Ridge = x)
+data2 <- as.data.frame(summary(coef_lasso)) %>% select(i, Lasso = x)
+data3 <- data.frame(QR = coef_rq) %>% rownames_to_column() 
+data4 <- data.frame(i = 1:length(coef_rq_lasso), coef_rq_lasso) %>%
+  `colnames<-`(value = c("i", "QRP")) %>%
+  rownames_to_column() %>%
+  mutate(rowname = ifelse(rowname == "intercept", "(Intercept)", rowname))
+data5 <- data.frame(LARS = coef_lars) %>% rownames_to_column
+
+full_join(data1, data2, by = "i") %>% 
+  full_join(data4, by = "i") %>%
+  full_join(data3, by = "rowname") %>%
+  full_join(data5, by = "rowname") %>%
+  select(Variable = rowname, Ridge, Lasso, QR, QRP, LARS) %>%
+  mutate(Lasso = replace_na(Lasso, replace = 0), 
+         LARS = replace_na(LARS, replace = 0)) %>% 
+  pander()
+
 ```
 
 
