@@ -302,11 +302,11 @@ coef(fit.lars.lasso)
 ```
 
 ```{r}
-cor(train_y - train_X %*% coefficient.lars[6,],train_X[,11] )
-cor(train_y - train_X %*% coefficient.lars[6,],train_X[,32] )
-cor(train_y - train_X %*% coefficient.lars[6,],train_X[,34] )
-cor(train_y - train_X %*% coefficient.lars[6,],train_X[,53] )
-cor(train_y - train_X %*% coefficient.lars[6,],train_X[,60] )
+cor(train_y - train_X %*% coefficient.lar[6,],train_X[,11] )
+cor(train_y - train_X %*% coefficient.lar[6,],train_X[,32] )
+cor(train_y - train_X %*% coefficient.lar[6,],train_X[,34] )
+cor(train_y - train_X %*% coefficient.lar[6,],train_X[,53] )
+cor(train_y - train_X %*% coefficient.lar[6,],train_X[,60] )
 ```
 
 
