@@ -292,7 +292,7 @@ MSE_lars = mean(SSE_lars)
 SE_lars = sd(SSE_lars)/sqrt(length(test_y))
 MSE_lars; SE_lars
 
-coefficients.lar = coef(fit.lars)
+coefficient.lar = coef(fit.lars)
 
 set.seed(1)
 fit.lars.lasso = lars(train_X, train_y, type="lasso")
